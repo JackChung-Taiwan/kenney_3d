@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kenney 3D 跑酷挑戰</title>
+  <style>
+    :root {
+      --panel: rgba(12, 24, 40, .72);
+      --panel-strong: rgba(12, 24, 40, .90);
+      --text: #f7fbff;
+      --muted: #b8c6d6;
+      --accent: #f5b642;
+      --ok: #67e08f;
+      --danger: #ff6868;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(#7fd3ff, #e7f8ff 72%, #b7f5c9);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      touch-action: none;
+    }
+    #game { position: fixed; inset: 0; }
+    #hud {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      min-width: 280px;
+      max-width: min(480px, calc(100vw - 32px));
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 18px;
+      padding: 14px 16px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 36px rgba(0,0,0,.20);
+      pointer-events: none;
+    }
+    #hud h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      line-height: 1.2;
+      letter-spacing: .04em;
+    }
+    #stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .stat {
+      padding: 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.12);
+      text-align: center;
+    }
+    .label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+    #bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.18);
+      overflow: hidden;
+      margin: 8px 0 10px;
+    }
+    #bar > div {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #5ce28e, #ffe070, #ff9f43);
+      transition: width .12s linear;
+    }
+    #message {
+      color: #fff;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #centerTip {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(560px, calc(100vw - 32px));
+      padding: 20px 22px;
+      border-radius: 24px;
+      background: var(--panel-strong);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 24px 60px rgba(0,0,0,.32);
+      text-align: center;
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    #centerTip.hidden {
+      opacity: 0;
+      transform: translate(-50%, -48%);
+      pointer-events: none;
+    }
+    #centerTip h2 { margin: 0 0 8px; font-size: 28px; }
+    #centerTip p { margin: 6px 0; color: var(--muted); line-height: 1.65; }
+    #centerTip .start {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 11px 18px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #17212e;
+      font-weight: 900;
+    }
+    #mobileControls {
+      position: fixed;
+      inset: auto 0 18px 0;
+      display: none;
+      justify-content: space-between;
+      align-items: end;
+      padding: 0 18px;
+      pointer-events: none;
+    }
+    .pad, .actions { pointer-events: auto; display: grid; gap: 10px; }
+    .pad { grid-template-columns: repeat(3, 54px); grid-template-rows: repeat(3, 54px); }
+    .actions { grid-template-columns: 72px 72px; grid-auto-rows: 54px; }
+    .ctrl {
+      border: 0;
+      border-radius: 18px;
+      background: rgba(11, 24, 38, .56);
+      color: white;
+      font-weight: 900;
+      font-size: 18px;
+      border: 1px solid rgba(255,255,255,.2);
+      box-shadow: 0 10px 24px rgba(0,0,0,.22);
+      backdrop-filter: blur(8px);
+      touch-action: none;
+    }
+    .ctrl:active, .ctrl.active { background: rgba(245,182,66,.82); color: #17212e; }
+    .empty { visibility: hidden; }
+    #credit {
+      position: fixed;
+      right: 12px;
+      bottom: 10px;
+      color: rgba(9,18,31,.62);
+      font-weight: 700;
+      font-size: 12px;
+      pointer-events: none;
+      text-shadow: 0 1px 0 rgba(255,255,255,.35);
+    }
+    @media (max-width: 860px), (pointer: coarse) {
+      #mobileControls { display: flex; }
+      #hud { top: 10px; left: 10px; min-width: 260px; padding: 12px; }
+      #hud h1 { font-size: 17px; }
+      #message { font-size: 12px; }
+      #credit { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <section id="hud">
+    <h1>Kenney 3D 跑酷挑戰</h1>
+    <div id="stats">
+      <div class="stat"><span class="label">金幣</span><span id="coinsText">0 / 0</span></div>
+      <div class="stat"><span class="label">死亡</span><span id="deathsText">0</span></div>
+      <div class="stat"><span class="label">時間</span><span id="timeText">0.0</span></div>
+    </div>
+    <div id="bar"><div id="progressFill"></div></div>
+    <div id="message">WASD / 方向鍵移動，Space 跳躍，Shift 衝刺，滑鼠拖曳或 Q/E 旋轉視角。</div>
+  </section>
+
+  <section id="centerTip">
+    <h2>空島跑酷任務</h2>
+    <p>收集金幣、避開紅色磚塊、踩過會掉落的平台，最後碰到終點旗子。</p>
+    <p>可二段跳。落下後會回到最近的檢查點。</p>
+    <div class="start">按任意鍵或點一下畫面開始</div>
+  </section>
+
+  <div id="mobileControls" aria-label="mobile controls">
+    <div class="pad">
+      <button class="ctrl empty">.</button><button class="ctrl" data-hold="forward">▲</button><button class="ctrl empty">.</button>
+      <button class="ctrl" data-hold="left">◀</button><button class="ctrl" data-tap="restart">R</button><button class="ctrl" data-hold="right">▶</button>
+      <button class="ctrl empty">.</button><button class="ctrl" data-hold="back">▼</button><button class="ctrl empty">.</button>
+    </div>
+    <div class="actions">
+      <button class="ctrl" data-hold="turnLeft">視角左</button>
+      <button class="ctrl" data-hold="turnRight">視角右</button>
+      <button class="ctrl" data-hold="sprint">衝刺</button>
+      <button class="ctrl" data-tap="jump">跳</button>
+    </div>
+  </div>
+  <div id="credit">Starter Kit 3D Platformer assets by Kenney / Three.js HTML demo</div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
+
+    // 素材來源：KenneyNL / Starter-Kit-3D-Platformer
+    // 專案 README 標示 included assets 為 CC0 licensed。
+    const ASSET_BASE = 'https://cdn.jsdelivr.net/gh/KenneyNL/Starter-Kit-3D-Platformer@main/';
+    const MODELS = {
+      character: 'models/character.glb',
+      coin: 'models/coin.glb',
+      blockCoin: 'models/block-coin.glb',
+      flag: 'models/flag.glb',
+      cloud: 'models/cloud.glb',
+      grass: 'models/grass.glb',
+      grassSmall: 'models/grass-small.glb',
+      brick: 'models/brick.glb',
+      platform: 'models/platform.glb',
+      platformMedium: 'models/platform-medium.glb',
+      platformLarge: 'models/platform-large.glb',
+      platformFalling: 'models/platform-falling.glb',
+      platformRound: 'models/platform-grass-large-round.glb'
+    };
+    const SOUNDS = {
+      coin: ASSET_BASE + 'sounds/coin.ogg',
+      jump: ASSET_BASE + 'sounds/jump.ogg',
+      fall: ASSET_BASE + 'sounds/fall.ogg',
+      land: ASSET_BASE + 'sounds/land.ogg',
+      break: ASSET_BASE + 'sounds/break.ogg'
+    };
+
+    const canvas = document.querySelector('#game');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x8fd8ff);
+    scene.fog = new THREE.Fog(0x8fd8ff, 24, 130);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
+    camera.position.set(0, 6, 12);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x6cb36c, 1.2);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffffff, 2.1);
+    sun.position.set(-14, 22, 14);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 90;
+    sun.shadow.camera.left = -60;
+    sun.shadow.camera.right = 60;
+    sun.shadow.camera.top = 60;
+    sun.shadow.camera.bottom = -60;
+    scene.add(sun);
+
+    const loader = new GLTFLoader();
+    const gltfCache = new Map();
+    const textureLoader = new THREE.TextureLoader();
+    const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+
+    const ui = {
+      centerTip: document.querySelector('#centerTip'),
+      coinsText: document.querySelector('#coinsText'),
+      deathsText: document.querySelector('#deathsText'),
+      timeText: document.querySelector('#timeText'),
+      progressFill: document.querySelector('#progressFill'),
+      message: document.querySelector('#message')
+    };
+
+    const matPlatform = new THREE.MeshStandardMaterial({ color: 0x7bc878, roughness: 0.78, metalness: 0.03 });
+    const matFalling = new THREE.MeshStandardMaterial({ color: 0xf0b15a, roughness: 0.8, metalness: 0.02 });
+    const matHazard = new THREE.MeshStandardMaterial({ color: 0xd94242, roughness: 0.72, metalness: 0.03 });
+    const matPad = new THREE.MeshStandardMaterial({ color: 0x8ee4ff, roughness: 0.38, metalness: 0.16, emissive: 0x103d54, emissiveIntensity: .45 });
+    const matCheckpoint = new THREE.MeshStandardMaterial({ color: 0x62e887, roughness: 0.45, metalness: 0.08, emissive: 0x103d1e, emissiveIntensity: .25 });
+    const matPlayer = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55 });
+
+    const keys = new Set();
+    const hold = new Set();
+    const platforms = [];
+    const coins = [];
+    const hazards = [];
+    const jumpPads = [];
+    const checkpoints = [];
+    let finishFlag = null;
+    let gameStarted = false;
+    let gameFinished = false;
+    let yaw = 0;
+    let playerVisualYaw = Math.PI;
+    let lastLandingSound = 0;
+
+    const player = {
+      pos: new THREE.Vector3(0, 2.2, 1.4),
+      vel: new THREE.Vector3(),
+      radius: 0.46,
+      halfHeight: 0.86,
+      grounded: false,
+      jumpsLeft: 2,
+      deaths: 0,
+      coins: 0,
+      checkpoint: new THREE.Vector3(0, 2.2, 1.4),
+      lastPlatform: null,
+      startTime: performance.now()
+    };
+
+    const playerGroup = new THREE.Group();
+    playerGroup.position.copy(player.pos);
+    scene.add(playerGroup);
+    createPlayerFallback();
+    attachModel('character', playerGroup, new THREE.Vector3(1.15, 1.85, 1.15), { uniform: true, replaceFallback: true });
+
+    const levelData = [
+      { pos: [0, 0, 0], size: [5.6, .8, 5.6], model: 'platformLarge', checkpoint: true, label: '起點' },
+      { pos: [0, .9, -7], size: [3.3, .72, 3.3], model: 'platformMedium', coin: true },
+      { pos: [3.5, 1.9, -13], size: [3.2, .72, 3.2], model: 'platformFalling', falling: true, coin: true },
+      { pos: [-1.7, 2.7, -18], size: [3.1, .72, 3.1], model: 'platform', coin: true, pad: true },
+      { pos: [-5.3, 3.8, -25], size: [4.7, .75, 2.8], model: 'platformLarge', moving: { axis: 'x', amp: 3.4, speed: 1.2 }, coin: true },
+      { pos: [.8, 4.9, -32], size: [3, .72, 3], model: 'platformFalling', falling: true, coin: true },
+      { pos: [5.4, 5.6, -38], size: [3.5, .72, 3.5], model: 'platformRound', coin: true, checkpoint: true, label: '檢查點 1' },
+      { pos: [2.6, 5.4, -46], size: [2.9, .72, 2.9], model: 'platform', moving: { axis: 'z', amp: 2.5, speed: 1.45 }, coin: true },
+      { pos: [-3.2, 6.2, -52], size: [3.2, .72, 3.2], model: 'platformFalling', falling: true, coin: true },
+      { pos: [-6.2, 7.1, -58], size: [4.6, .75, 2.7], model: 'platformLarge', coin: true, hazard: true },
+      { pos: [-1.2, 8.1, -65], size: [3.1, .72, 3.1], model: 'platformMedium', coin: true, pad: true, checkpoint: true, label: '檢查點 2' },
+      { pos: [4.4, 9.0, -72], size: [3.2, .72, 3.2], model: 'platformFalling', falling: true, coin: true },
+      { pos: [0, 9.8, -80], size: [6.8, .9, 5.2], model: 'platformRound', coin: true, finish: true, label: '終點' }
+    ];
+
+    buildWorld();
+    createDecorations();
+    updateHUD();
+
+    function modelUrl(name) {
+      return ASSET_BASE + MODELS[name];
+    }
+
+    function getGLTF(name) {
+      if (!gltfCache.has(name)) {
+        gltfCache.set(name, loader.loadAsync(modelUrl(name)));
+      }
+      return gltfCache.get(name);
+    }
+
+    async function attachModel(name, parent, targetSize, options = {}) {
+      try {
+        const gltf = await getGLTF(name);
+        const model = gltf.scene.clone(true);
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = options.castShadow !== false;
+            child.receiveShadow = options.receiveShadow !== false;
+          }
+        });
+        const fitted = fitObject(model, targetSize, !!options.uniform);
+        if (options.rotation) fitted.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        if (options.offset) fitted.position.set(options.offset[0], options.offset[1], options.offset[2]);
+        parent.add(fitted);
+        if (options.replaceFallback) {
+          parent.children.forEach((child) => {
+            if (child.userData && child.userData.fallback) child.visible = false;
+          });
+        }
+        return fitted;
+      } catch (error) {
+        console.warn(`模型載入失敗：${name}`, error);
+        return null;
+      }
+    }
+
+    function fitObject(object, targetSize, uniform = false) {
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      object.position.sub(center);
+      const wrapper = new THREE.Group();
+      wrapper.add(object);
+      const sx = targetSize.x / Math.max(size.x, .0001);
+      const sy = targetSize.y / Math.max(size.y, .0001);
+      const sz = targetSize.z / Math.max(size.z, .0001);
+      if (uniform) {
+        const s = Math.min(sx, sy, sz);
+        wrapper.scale.setScalar(s);
+      } else {
+        wrapper.scale.set(sx, sy, sz);
+      }
+      return wrapper;
+    }
+
+    function makeBox(size, material) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.fallback = true;
+      return mesh;
+    }
+
+    function createPlayerFallback() {
+      const body = new THREE.Group();
+      body.userData.fallback = true;
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(.8, 1.15, .55), matPlayer);
+      torso.position.y = -.1;
+      torso.castShadow = true;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(.34, 18, 12), matPlayer);
+      head.position.y = .68;
+      head.castShadow = true;
+      body.add(torso, head);
+      playerGroup.add(body);
+    }
+
+    function buildWorld() {
+      levelData.forEach((data, index) => {
+        const p = {
+          index,
+          base: new THREE.Vector3(...data.pos),
+          pos: new THREE.Vector3(...data.pos),
+          size: new THREE.Vector3(...data.size),
+          falling: !!data.falling,
+          fallTriggered: false,
+          fallDelay: .62,
+          fallVelocity: 0,
+          enabled: true,
+          moving: data.moving || null,
+          delta: new THREE.Vector3(),
+          group: new THREE.Group(),
+          label: data.label || ''
+        };
+        p.group.position.copy(p.pos);
+        scene.add(p.group);
+        const fallback = makeBox(data.size, data.falling ? matFalling : matPlatform);
+        p.group.add(fallback);
+        attachModel(data.model || 'platform', p.group, new THREE.Vector3(data.size[0], data.size[1] * 1.6, data.size[2]), { replaceFallback: true });
+        platforms.push(p);
+
+        if (data.coin) addCoin(p.pos.clone().add(new THREE.Vector3(0, data.size[1] / 2 + 1.05, 0)));
+        if (data.pad) addJumpPad(p.pos.clone().add(new THREE.Vector3(0, data.size[1] / 2 + .25, 0)));
+        if (data.hazard) addHazard(p.pos.clone().add(new THREE.Vector3(0, data.size[1] / 2 + .58, .35)), new THREE.Vector3(3.7, .8, .55));
+        if (data.checkpoint) addCheckpoint(p, data.label);
+        if (data.finish) addFinish(p);
+      });
+    }
+
+    function addCoin(position) {
+      const group = new THREE.Group();
+      group.position.copy(position);
+      scene.add(group);
+      const fallback = new THREE.Mesh(new THREE.TorusGeometry(.38, .12, 14, 28), new THREE.MeshStandardMaterial({ color: 0xffd24d, metalness: .35, roughness: .22 }));
+      fallback.rotation.x = Math.PI / 2;
+      fallback.castShadow = true;
+      fallback.userData.fallback = true;
+      group.add(fallback);
+      attachModel('coin', group, new THREE.Vector3(.88, .88, .88), { uniform: true, replaceFallback: true });
+      coins.push({ group, taken: false, baseY: position.y });
+    }
+
+    function addJumpPad(position) {
+      const group = new THREE.Group();
+      group.position.copy(position);
+      scene.add(group);
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(.8, .95, .25, 24), matPad);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.fallback = true;
+      group.add(mesh);
+      attachModel('blockCoin', group, new THREE.Vector3(1.25, .75, 1.25), { uniform: true });
+      jumpPads.push({ group, radius: 1.05, cooldown: 0 });
+    }
+
+    function addHazard(position, size) {
+      const group = new THREE.Group();
+      group.position.copy(position);
+      scene.add(group);
+      const fallback = makeBox([size.x, size.y, size.z], matHazard);
+      group.add(fallback);
+      attachModel('brick', group, new THREE.Vector3(size.x, size.y, size.z), { replaceFallback: true });
+      hazards.push({ group, size });
+    }
+
+    function addCheckpoint(platform, label) {
+      const top = platform.pos.y + platform.size.y / 2;
+      const group = new THREE.Group();
+      group.position.set(platform.pos.x, top + .08, platform.pos.z + platform.size.z * .36);
+      scene.add(group);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(.7, .08, 12, 32), matCheckpoint);
+      ring.rotation.x = Math.PI / 2;
+      ring.castShadow = true;
+      group.add(ring);
+      checkpoints.push({ platform, group, label, reached: platform.index === 0 });
+    }
+
+    function addFinish(platform) {
+      const top = platform.pos.y + platform.size.y / 2;
+      finishFlag = new THREE.Group();
+      finishFlag.position.set(platform.pos.x, top + 1.75, platform.pos.z - .8);
+      scene.add(finishFlag);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 3.2, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .45 }));
+      pole.castShadow = true;
+      const banner = new THREE.Mesh(new THREE.BoxGeometry(1.5, .8, .08), new THREE.MeshStandardMaterial({ color: 0xff6347, roughness: .5, emissive: 0x330b0b, emissiveIntensity: .15 }));
+      banner.position.set(.78, .88, 0);
+      banner.castShadow = true;
+      finishFlag.add(pole, banner);
+      attachModel('flag', finishFlag, new THREE.Vector3(2.3, 3.4, 2.3), { uniform: true, replaceFallback: true });
+    }
+
+    function createDecorations() {
+      const water = new THREE.Mesh(
+        new THREE.CircleGeometry(95, 96),
+        new THREE.MeshStandardMaterial({ color: 0x4fb9ef, roughness: .38, metalness: .05, transparent: true, opacity: .86 })
+      );
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(0, -5.4, -42);
+      water.receiveShadow = true;
+      scene.add(water);
+
+      const cloudPositions = [
+        [-12, 9, -8, 5], [10, 13, -18, 6], [-14, 15, -35, 4.8], [14, 16, -54, 6.2], [-9, 18, -72, 5.2]
+      ];
+      cloudPositions.forEach(([x, y, z, s], i) => {
+        const group = new THREE.Group();
+        group.position.set(x, y, z);
+        group.rotation.y = i * .7;
+        scene.add(group);
+        const fallback = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9 }));
+        fallback.scale.set(s * 1.2, s * .38, s * .58);
+        fallback.userData.fallback = true;
+        group.add(fallback);
+        attachModel('cloud', group, new THREE.Vector3(s, s * .55, s), { uniform: true, replaceFallback: true, castShadow: false, receiveShadow: false });
+      });
+
+      levelData.forEach((data, i) => {
+        if (i % 2 === 0 && !data.finish) {
+          const g1 = new THREE.Group();
+          const p = new THREE.Vector3(...data.pos);
+          g1.position.set(p.x + data.size[0] * .38, p.y + data.size[1] / 2 + .28, p.z - data.size[2] * .36);
+          scene.add(g1);
+          attachModel(i % 4 === 0 ? 'grass' : 'grassSmall', g1, new THREE.Vector3(.7, .7, .7), { uniform: true });
+        }
+      });
+    }
+
+    function playSound(name, volume = .35) {
+      const url = SOUNDS[name];
+      if (!url) return;
+      const audio = new Audio(url);
+      audio.volume = volume;
+      audio.play().catch(() => {});
+    }
+
+    function startGame() {
+      if (gameStarted) return;
+      gameStarted = true;
+      gameFinished = false;
+      player.startTime = performance.now();
+      ui.centerTip.classList.add('hidden');
+      ui.message.textContent = '衝到終點旗子。金幣全收集會得到更高分。';
+      playSound('land', .01);
+    }
+
+    function resetGame() {
+      player.pos.set(0, 2.2, 1.4);
+      player.vel.set(0, 0, 0);
+      player.checkpoint.set(0, 2.2, 1.4);
+      player.coins = 0;
+      player.deaths = 0;
+      player.grounded = false;
+      player.jumpsLeft = 2;
+      player.startTime = performance.now();
+      yaw = 0;
+      playerVisualYaw = Math.PI;
+      gameFinished = false;
+      gameStarted = true;
+      ui.centerTip.classList.add('hidden');
+      platforms.forEach((p) => {
+        p.pos.copy(p.base);
+        p.group.position.copy(p.pos);
+        p.fallTriggered = false;
+        p.fallDelay = .62;
+        p.fallVelocity = 0;
+        p.enabled = true;
+        p.group.visible = true;
+      });
+      coins.forEach((coin) => { coin.taken = false; coin.group.visible = true; });
+      checkpoints.forEach((cp, i) => { cp.reached = i === 0; });
+      ui.message.textContent = '重新開始。WASD 移動，Space 可二段跳。';
+      updateHUD();
+    }
+
+    function respawn(reason = '掉下去了') {
+      player.deaths += 1;
+      player.pos.copy(player.checkpoint);
+      player.vel.set(0, 0, 0);
+      player.grounded = false;
+      player.jumpsLeft = 2;
+      player.lastPlatform = null;
+      ui.message.textContent = `${reason}，回到最近的檢查點。`;
+      playSound('fall', .35);
+      updateHUD();
+    }
+
+    function jump() {
+      startGame();
+      if (gameFinished) return;
+      if (player.jumpsLeft > 0) {
+        player.vel.y = player.grounded ? 9.6 : 8.25;
+        player.grounded = false;
+        player.jumpsLeft -= 1;
+        playSound('jump', .34);
+      }
+    }
+
+    function updateControls(dt) {
+      if (keys.has('KeyQ') || hold.has('turnLeft')) yaw += dt * 2.15;
+      if (keys.has('KeyE') || hold.has('turnRight')) yaw -= dt * 2.15;
+
+      const input = new THREE.Vector3();
+      if (keys.has('KeyW') || keys.has('ArrowUp') || hold.has('forward')) input.z -= 1;
+      if (keys.has('KeyS') || keys.has('ArrowDown') || hold.has('back')) input.z += 1;
+      if (keys.has('KeyA') || keys.has('ArrowLeft') || hold.has('left')) input.x -= 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight') || hold.has('right')) input.x += 1;
+
+      const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') || hold.has('sprint');
+      const speed = sprint ? 8.2 : 5.7;
+      const forward = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+      const right = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
+      const desired = new THREE.Vector3();
+      if (input.lengthSq() > 0) {
+        input.normalize();
+        desired.addScaledVector(right, input.x);
+        desired.addScaledVector(forward, -input.z);
+        desired.normalize().multiplyScalar(speed);
+      }
+      const lerpRate = input.lengthSq() > 0 ? 11 : 7;
+      player.vel.x += (desired.x - player.vel.x) * Math.min(1, lerpRate * dt);
+      player.vel.z += (desired.z - player.vel.z) * Math.min(1, lerpRate * dt);
+    }
+
+    function updatePlatforms(dt, elapsed) {
+      platforms.forEach((p) => {
+        p.delta.set(0, 0, 0);
+        if (!p.enabled) return;
+        const old = p.pos.clone();
+        if (p.moving) {
+          const value = Math.sin(elapsed * p.moving.speed) * p.moving.amp;
+          p.pos.copy(p.base);
+          if (p.moving.axis === 'x') p.pos.x += value;
+          if (p.moving.axis === 'z') p.pos.z += value;
+        }
+        if (p.fallTriggered) {
+          p.fallDelay -= dt;
+          if (p.fallDelay <= 0) {
+            p.fallVelocity -= 20 * dt;
+            p.pos.y += p.fallVelocity * dt;
+            if (p.pos.y < -7.5) {
+              p.enabled = false;
+              p.group.visible = false;
+            }
+          }
+        }
+        p.delta.copy(p.pos).sub(old);
+        p.group.position.copy(p.pos);
+      });
+    }
+
+    function updatePhysics(dt) {
+      const prevPos = player.pos.clone();
+      if (player.lastPlatform && player.grounded && player.lastPlatform.enabled) {
+        player.pos.add(player.lastPlatform.delta);
+      }
+
+      player.vel.y -= 24.5 * dt;
+      player.pos.addScaledVector(player.vel, dt);
+      player.grounded = false;
+      let groundPlatform = null;
+
+      const prevBottom = prevPos.y - player.halfHeight;
+      const currentBottom = player.pos.y - player.halfHeight;
+      for (const p of platforms) {
+        if (!p.enabled) continue;
+        const top = p.pos.y + p.size.y / 2;
+        const withinX = Math.abs(player.pos.x - p.pos.x) <= p.size.x / 2 + player.radius;
+        const withinZ = Math.abs(player.pos.z - p.pos.z) <= p.size.z / 2 + player.radius;
+        if (withinX && withinZ && player.vel.y <= 0 && prevBottom >= top - .2 && currentBottom <= top + .28) {
+          player.pos.y = top + player.halfHeight;
+          player.vel.y = 0;
+          player.grounded = true;
+          player.jumpsLeft = 2;
+          groundPlatform = p;
+          if (p.falling && !p.fallTriggered) {
+            p.fallTriggered = true;
+            playSound('break', .28);
+            ui.message.textContent = '黃色平台開始掉落，快跳到下一個平台。';
+          }
+          const now = performance.now();
+          if (now - lastLandingSound > 260) {
+            playSound('land', .18);
+            lastLandingSound = now;
+          }
+          break;
+        }
+      }
+      player.lastPlatform = groundPlatform;
+
+      if (player.pos.y < -10) respawn('掉入雲海');
+    }
+
+    function updateObjects(dt, elapsed) {
+      coins.forEach((coin) => {
+        if (coin.taken) return;
+        coin.group.rotation.y += dt * 2.8;
+        coin.group.position.y = coin.baseY + Math.sin(elapsed * 3.2 + coin.baseY) * .12;
+        if (coin.group.position.distanceTo(player.pos) < 1.05) {
+          coin.taken = true;
+          coin.group.visible = false;
+          player.coins += 1;
+          playSound('coin', .42);
+          ui.message.textContent = `收集到金幣：${player.coins} / ${coins.length}`;
+          updateHUD();
+        }
+      });
+
+      jumpPads.forEach((pad) => {
+        pad.cooldown = Math.max(0, pad.cooldown - dt);
+        pad.group.rotation.y += dt;
+        const nearXZ = new THREE.Vector2(player.pos.x - pad.group.position.x, player.pos.z - pad.group.position.z).length() < pad.radius;
+        const closeY = Math.abs((player.pos.y - player.halfHeight) - pad.group.position.y) < .65;
+        if (nearXZ && closeY && pad.cooldown <= 0) {
+          player.vel.y = 13.2;
+          player.grounded = false;
+          player.jumpsLeft = 1;
+          pad.cooldown = .65;
+          playSound('jump', .45);
+          ui.message.textContent = '彈跳方塊啟動。';
+        }
+      });
+
+      hazards.forEach((hazard) => {
+        hazard.group.rotation.y += dt * .55;
+        if (intersectsBox(player.pos, player.radius, player.halfHeight, hazard.group.position, hazard.size)) {
+          respawn('碰到紅色障礙');
+        }
+      });
+
+      checkpoints.forEach((cp) => {
+        cp.group.rotation.z += dt * 1.35;
+        const center = cp.group.position.clone();
+        if (!cp.reached && center.distanceTo(player.pos) < 2.0) {
+          cp.reached = true;
+          player.checkpoint.set(cp.platform.pos.x, cp.platform.pos.y + cp.platform.size.y / 2 + player.halfHeight + .2, cp.platform.pos.z);
+          ui.message.textContent = `${cp.label || '檢查點'} 已記錄。`;
+          playSound('coin', .2);
+        }
+      });
+
+      if (finishFlag && !gameFinished) {
+        finishFlag.rotation.y = Math.sin(elapsed * 1.6) * .18;
+        if (finishFlag.position.distanceTo(player.pos) < 2.35) {
+          gameFinished = true;
+          const elapsedSeconds = ((performance.now() - player.startTime) / 1000).toFixed(1);
+          ui.message.innerHTML = `<b style="color: var(--ok)">任務完成。</b> 金幣 ${player.coins}/${coins.length}，死亡 ${player.deaths}，時間 ${elapsedSeconds} 秒。按 R 可重新挑戰。`;
+          playSound('coin', .55);
+        }
+      }
+    }
+
+    function intersectsBox(pos, radius, halfHeight, boxCenter, boxSize) {
+      const closestX = THREE.MathUtils.clamp(pos.x, boxCenter.x - boxSize.x / 2, boxCenter.x + boxSize.x / 2);
+      const closestY = THREE.MathUtils.clamp(pos.y, boxCenter.y - boxSize.y / 2, boxCenter.y + boxSize.y / 2);
+      const closestZ = THREE.MathUtils.clamp(pos.z, boxCenter.z - boxSize.z / 2, boxCenter.z + boxSize.z / 2);
+      const dx = pos.x - closestX;
+      const dy = pos.y - closestY;
+      const dz = pos.z - closestZ;
+      return dx * dx + dy * dy + dz * dz < (radius + .08) * (radius + .08) ||
+        (Math.abs(pos.x - boxCenter.x) < boxSize.x / 2 + radius &&
+         Math.abs(pos.z - boxCenter.z) < boxSize.z / 2 + radius &&
+         Math.abs(pos.y - boxCenter.y) < boxSize.y / 2 + halfHeight);
+    }
+
+    function updateCamera(dt) {
+      const behind = new THREE.Vector3(-Math.sin(yaw) * 9, 5.2, Math.cos(yaw) * 9);
+      const targetCam = player.pos.clone().add(behind);
+      targetCam.y += Math.max(0, Math.abs(player.vel.y) * .05);
+      camera.position.lerp(targetCam, 1 - Math.pow(.001, dt));
+      const look = player.pos.clone().add(new THREE.Vector3(0, .7, 0));
+      camera.lookAt(look);
+    }
+
+    function updatePlayerVisual(dt) {
+      playerGroup.position.copy(player.pos);
+      const horizontalSpeed = Math.hypot(player.vel.x, player.vel.z);
+
+      // 角色朝向改為「實際移動方向」，不再永遠跟著攝影機 yaw。
+      // Kenney 角色模型的正面朝向 +Z，因此用 atan2(x, z) 對齊移動向量。
+      // 例：向前跑 z 為負值，角色會轉向跑道前方；A/D 或斜向移動也會同步轉身。
+      if (horizontalSpeed > .18) {
+        const targetYaw = Math.atan2(player.vel.x, player.vel.z);
+        const turnDiff = Math.atan2(Math.sin(targetYaw - playerVisualYaw), Math.cos(targetYaw - playerVisualYaw));
+        const turnAmount = 1 - Math.pow(.0008, dt);
+        playerVisualYaw += turnDiff * turnAmount;
+      }
+
+      playerGroup.rotation.y = playerVisualYaw;
+      const bob = player.grounded ? Math.sin(performance.now() * .012) * Math.min(horizontalSpeed * .025, .12) : 0;
+      playerGroup.position.y += bob;
+      const lean = THREE.MathUtils.clamp(horizontalSpeed / 8, 0, 1) * .14;
+      playerGroup.rotation.x = player.grounded ? -lean : 0;
+    }
+
+    function updateHUD() {
+      ui.coinsText.textContent = `${player.coins} / ${coins.length}`;
+      ui.deathsText.textContent = `${player.deaths}`;
+      const elapsed = gameStarted ? (performance.now() - player.startTime) / 1000 : 0;
+      ui.timeText.textContent = elapsed.toFixed(1);
+      const startZ = 0;
+      const finishZ = -80;
+      const progress = THREE.MathUtils.clamp((startZ - player.pos.z) / (startZ - finishZ), 0, 1);
+      ui.progressFill.style.width = `${Math.round(progress * 100)}%`;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 1 / 30);
+      const elapsed = clock.elapsedTime;
+
+      if (gameStarted && !gameFinished) {
+        updateControls(dt);
+        updatePlatforms(dt, elapsed);
+        updatePhysics(dt);
+        updateObjects(dt, elapsed);
+      } else {
+        updateObjects(dt, elapsed);
+      }
+      updatePlayerVisual(dt);
+      updateCamera(dt);
+      updateHUD();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener('keydown', (event) => {
+      startGame();
+      keys.add(event.code);
+      if (event.code === 'Space') {
+        event.preventDefault();
+        jump();
+      }
+      if (event.code === 'KeyR') resetGame();
+    });
+    window.addEventListener('keyup', (event) => keys.delete(event.code));
+    window.addEventListener('pointerdown', () => startGame(), { passive: true });
+
+    let dragging = false;
+    let lastX = 0;
+    canvas.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      lastX = event.clientX;
+    });
+    window.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      const dx = event.clientX - lastX;
+      yaw -= dx * .006;
+      lastX = event.clientX;
+    });
+    window.addEventListener('pointerup', () => { dragging = false; });
+
+    document.querySelectorAll('[data-hold]').forEach((button) => {
+      const name = button.dataset.hold;
+      const on = (event) => {
+        event.preventDefault();
+        startGame();
+        hold.add(name);
+        button.classList.add('active');
+      };
+      const off = (event) => {
+        event.preventDefault();
+        hold.delete(name);
+        button.classList.remove('active');
+      };
+      button.addEventListener('pointerdown', on);
+      button.addEventListener('pointerup', off);
+      button.addEventListener('pointercancel', off);
+      button.addEventListener('pointerleave', off);
+    });
+
+    document.querySelectorAll('[data-tap]').forEach((button) => {
+      button.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        const action = button.dataset.tap;
+        if (action === 'jump') jump();
+        if (action === 'restart') resetGame();
+      });
+    });
+  </script>
+</body>
+</html>
