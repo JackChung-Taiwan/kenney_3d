@@ -1,3 +1,86 @@
+ChatGPT
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+我會先確認 GitHub 專案裡可直接使用的素材路徑，接著製作一個可單檔開啟的 HTML 3D 跑酷範例，盡量使用遠端素材避免你還要手動整理資料夾。
+
+我已確認這個專案是 Godot 3D 平台遊戲模板，素材包含角色、平台、金幣、旗子、雲、音效等，且 README 標示素材為 CC0 授權，可用於改製。接下來會把它改成 Three.js 單頁 HTML。
+
+已思考 3m 12s
+已完成一個 3D 跑酷遊戲 HTML，使用 KenneyNL/Starter-Kit-3D-Platformer 裡面的角色、平台、金幣、旗子、雲與音效素材。原專案 README 說明它包含 3D 平台遊戲模板、角色控制、金幣、掉落平台、鏡頭控制、3D Models 與音效，而且素材為 CC0 授權；模型資料夾也包含 character.glb、coin.glb、platform-*.glb、flag.glb 等素材。
+ 
+
+下載：
+
+kenney_3d_parkour.html
+
+ZIP 壓縮檔
+
+操作方式：
+WASD / 方向鍵移動、Space 跳躍、Shift 衝刺、Q/E 或滑鼠拖曳旋轉視角、R 重新開始。手機也有螢幕按鈕。
+
+注意：這個 HTML 會從 GitHub/jsDelivr 線上載入 Kenney 素材與 Three.js，所以開啟時需要網路。
+
+
+
+目前無法執行遊戲
+
+我會先檢查目前 HTML 哪裡壞掉，常見原因是瀏覽器用 file:// 開啟時阻擋 ES module 或遠端模型路徑失效。接著直接給你一版更穩定、可執行的修正版。
+
+已思考 2m 12s
+已修正。主要問題是原本 GLTFLoader.js 會再去找 three 模組，本機開啟時容易失敗；我已加入 importmap，並加上載入失敗提示。
+
+Kenney 原專案確實包含 3D 平台遊戲功能，例如二段跳、金幣、掉落平台、鏡頭控制、3D Models 與音效，素材也標示為 CC0；模型資料夾內有 character.glb、coin.glb、platform-falling.glb、flag.glb 等素材。
+
+下載修正版：
+
+修正版 HTML
+
+修正版 ZIP
+
+建議用 Chrome / Edge 開啟，而且需要網路，因為 Three.js 和 Kenney 模型會從線上載入。
+
+如果雙擊 HTML 還是空白，請用本機伺服器開啟：
+
+cd 下載資料夾
+python -m http.server 8000
+再用瀏覽器開：
+
+http://localhost:8000/kenney_3d_parkour.html
+
+
+目前角色面朝位置無法跟著按鍵方向,修正,例如向前跑,臉要朝前
+
+我會直接修改現有 HTML 的角色旋轉邏輯，讓角色依照實際移動方向轉身；同時保留原本 WASD、方向鍵、滑鼠視角與手機按鈕操作。
+
+已思考 1m 45s
+已修正角色朝向問題。
+
+這版已改成：
+按 前進 → 角色臉朝跑道前方
+按 左 / 右 / 後退 / 斜向 → 角色會依照實際移動方向平滑轉身
+攝影機旋轉仍保留，不會影響角色錯誤面向。
+
+下載修正版：
+
+修正版 HTML
+
+修正版 ZIP
+
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -191,33 +274,9 @@
   </div>
   <div id="credit">Starter Kit 3D Platformer assets by Kenney / Three.js HTML demo</div>
 
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
-      }
-    }
-  </script>
-  <script>
-    window.addEventListener('error', function (event) {
-      const box = document.querySelector('#centerTip');
-      if (!box) return;
-      box.classList.remove('hidden');
-      box.innerHTML = '<h2>遊戲載入失敗</h2><p>請確認電腦有網路，或改用 Chrome / Edge 開啟。</p><p>若是學校網路擋住 jsDelivr 或 GitHub，請改用本機伺服器或允許 cdn.jsdelivr.net、github.com。</p>';
-      console.error(event.error || event.message);
-    });
-    window.addEventListener('unhandledrejection', function (event) {
-      const box = document.querySelector('#centerTip');
-      if (!box) return;
-      box.classList.remove('hidden');
-      box.innerHTML = '<h2>素材載入失敗</h2><p>請確認網路可連到 GitHub / jsDelivr。</p><p>若畫面只有方塊也可以先玩，模型載入完成後會自動替換。</p>';
-      console.error(event.reason);
-    });
-  </script>
   <script type="module">
-    import * as THREE from 'three';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
 
     // 素材來源：KenneyNL / Starter-Kit-3D-Platformer
     // 專案 README 標示 included assets 為 CC0 licensed。
@@ -306,6 +365,7 @@
     let gameStarted = false;
     let gameFinished = false;
     let yaw = 0;
+    let playerVisualYaw = Math.PI;
     let lastLandingSound = 0;
 
     const player = {
@@ -583,6 +643,7 @@
       player.jumpsLeft = 2;
       player.startTime = performance.now();
       yaw = 0;
+      playerVisualYaw = Math.PI;
       gameFinished = false;
       gameStarted = true;
       ui.centerTip.classList.add('hidden');
@@ -802,8 +863,19 @@
 
     function updatePlayerVisual(dt) {
       playerGroup.position.copy(player.pos);
-      playerGroup.rotation.y = yaw;
       const horizontalSpeed = Math.hypot(player.vel.x, player.vel.z);
+
+      // 角色朝向改為「實際移動方向」，不再永遠跟著攝影機 yaw。
+      // Kenney 角色模型的正面朝向 +Z，因此用 atan2(x, z) 對齊移動向量。
+      // 例：向前跑 z 為負值，角色會轉向跑道前方；A/D 或斜向移動也會同步轉身。
+      if (horizontalSpeed > .18) {
+        const targetYaw = Math.atan2(player.vel.x, player.vel.z);
+        const turnDiff = Math.atan2(Math.sin(targetYaw - playerVisualYaw), Math.cos(targetYaw - playerVisualYaw));
+        const turnAmount = 1 - Math.pow(.0008, dt);
+        playerVisualYaw += turnDiff * turnAmount;
+      }
+
+      playerGroup.rotation.y = playerVisualYaw;
       const bob = player.grounded ? Math.sin(performance.now() * .012) * Math.min(horizontalSpeed * .025, .12) : 0;
       playerGroup.position.y += bob;
       const lean = THREE.MathUtils.clamp(horizontalSpeed / 8, 0, 1) * .14;
@@ -903,3 +975,4 @@
   </script>
 </body>
 </html>
+
